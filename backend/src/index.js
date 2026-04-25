@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 // API routes
-app.use('/api/auth', authRoutes);
+app.use('/api/v1/auth', authRoutes);
 
 // Serve frontend static files
 const frontendPath = join(__dirname, '../../frontend');
