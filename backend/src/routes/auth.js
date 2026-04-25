@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.post('/login', async (req, res) => {
   try {
-    const { employeeCode, password } = req.body;
+    const { employee_code, password } = req.body;
 
     if (!employeeCode || !password) {
       return res.status(400).json({ error: 'Employee code and password required' });
