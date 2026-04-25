@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>National Enterprise</title>
+<link rel="stylesheet" href="/shared/style.css">
+</head>
+<body class="login-body">
+<div class="login-card">
+  <div class="login-brand">
+    <div class="login-logo">NE</div>
+    <h1>National Enterprise</h1>
+    <p class="muted">Employee login</p>
+  </div>
+
+  <form id="loginForm" class="login-form">
+    <label>
+      <span>Employee ID</span>
+      <input type="text" id="employeeCode" autocomplete="username" autocapitalize="characters" required>
+    </label>
+    <label>
+      <span>Password</span>
+      <input type="password" id="password" autocomplete="current-password" required>
+    </label>
+    <div id="loginError" class="error-text hidden"></div>
+    <button type="submit" id="loginBtn" class="btn-primary">Login</button>
+  </form>
+
+  <p class="login-hint muted">Use your Employee ID (e.g., EMP001) and password.</p>
+</div>
+
+<script src="/shared/api.js"></script>
+<script>
+// If already logged in, redirect based on role
+(function redirectIfAuthenticated() {
+  const token = localStorage.getItem('access_token');
+  const userStr = localStorage.getItem('user');
+  if (token && userStr) {
+    const user = JSON.parse(userStr);
+    if (user.role === 'EMPLOYEE') window.location.href = '/employee/';
+    else window.location.href = '/admin/';
+  }
+})();
+
+const form = document.getElementById('loginForm');
+const errorBox = document.getElementById('loginError');
+const btn = document.getElementById('loginBtn');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorBox.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+
+  const employee_code = document.getElementById('employeeCode').value.trim().toUpperCase();
+  const password = document.getElementById('password').value;
+
+  try {
+    const res = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employee_code, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorBox.textContent = (data.error && data.error.message) || 'Login failed';
+      errorBox.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Login';
+      return;
+    }
+    localStorage.setItem('access_token', data.access_token);
+    localStorage.setItem('refresh_token', data.refresh_token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+
+    if (data.user.role === 'EMPLOYEE') {
+      window.location.href = '/employee/';
+    } else {
+      window.location.href = '/admin/';
+    }
+  } catch (err) {
+    errorBox.textContent = 'Network error. Please try again.';
+    errorBox.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Login';
+  }
+});
+</script>
+</body>
+</html>

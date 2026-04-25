@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · National Enterprise</title>
+<link rel="stylesheet" href="/shared/style.css">
+</head>
+<body class="admin-body">
+
+<aside class="admin-sidebar" id="sidebar">
+  <div class="admin-logo">
+    <div class="badge">NE</div>
+    <div>
+      <h2>National Enterprise</h2>
+      <p>HRMS</p>
+    </div>
+  </div>
+
+  <ul class="admin-nav" id="navList">
+    <li><a data-view="dashboard" class="active">📊 Dashboard</a></li>
+    <li><a data-view="employees">👥 Employees</a></li>
+    <li><a data-view="attendance">🕐 Attendance</a></li>
+    <li><a data-view="pending">⚠️ Pending Verifications <span class="nav-badge hidden" id="pendingBadge">0</span></a></li>
+    <li><a data-view="salary">💰 Salary</a></li>
+    <li><a data-view="loans">🏦 Loans</a></li>
+    <li><a data-view="advances">💵 Advances</a></li>
+    <li><a data-view="audit">📋 Audit Log</a></li>
+    <li><a data-view="punch">✋ My Punch</a></li>
+  </ul>
+
+  <div class="admin-user">
+    <div>
+      <div id="sidebarUserName" style="font-weight:500;">—</div>
+      <div class="muted" style="font-size:11px;" id="sidebarUserRole">—</div>
+    </div>
+    <span class="logout-btn" id="logoutLink">Logout</span>
+  </div>
+</aside>
+
+<main class="admin-main">
+  <button class="mobile-menu-btn" id="mobileMenuBtn">☰ Menu</button>
+  <div id="viewContainer"></div>
+</main>
+
+<div id="modalContainer"></div>
+
+<script src="/shared/api.js"></script>
+<script src="/admin/app.js"></script>
+</body>
+</html>

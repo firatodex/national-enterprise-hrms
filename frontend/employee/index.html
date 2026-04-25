@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>National Enterprise</title>
+<link rel="stylesheet" href="/shared/style.css">
+</head>
+<body class="emp-body">
+<div class="emp-screen">
+  <div class="emp-brand">NATIONAL ENTERPRISE</div>
+
+  <div class="emp-greeting">
+    <div class="hello">Hello,</div>
+    <div class="name" id="empName">—</div>
+  </div>
+
+  <div class="emp-clock">
+    <div class="time mono" id="clockTime">--:--:--</div>
+    <div class="date" id="clockDate">—</div>
+  </div>
+
+  <div class="emp-status idle" id="statusCard">
+    <div class="dot"></div>
+    <div>
+      <div class="title" id="statusTitle">Loading...</div>
+      <div class="sub" id="statusSub"></div>
+    </div>
+  </div>
+
+  <div class="emp-buttons">
+    <button class="emp-btn emp-btn-in" id="btnIn" disabled>
+      <span class="icon">▶</span>
+      PUNCH IN
+    </button>
+    <button class="emp-btn emp-btn-out" id="btnOut" disabled>
+      <span class="icon">■</span>
+      PUNCH OUT
+    </button>
+  </div>
+
+  <div class="emp-sessions">
+    <h3>TODAY'S SESSIONS</h3>
+    <ul id="sessionsList">
+      <li><span class="muted">No sessions yet today</span></li>
+    </ul>
+  </div>
+
+  <a class="emp-logout" id="logoutLink">Logout</a>
+</div>
+
+<div id="sheetContainer"></div>
+
+<script src="/shared/api.js"></script>
+<script>
+const user = API.getCurrentUser();
+if (!user || user.role !== 'EMPLOYEE') {
+  // Admins are redirected to admin page
+  if (user && (user.role === 'ADMIN' || user.role === 'OWNER')) {
+    window.location.href = '/admin/';
+  } else {
+    window.location.href = '/';
+  }
+}
+
+document.getElementById('empName').textContent = user.full_name;
+document.getElementById('logoutLink').addEventListener('click', () => API.logout());
+
+let serverOffsetMs = 0;
+let state = { open_session: null, has_unresolved_open_punch: false, today_sessions: [] };
+
+// ===== CLOCK =====
+function tickClock() {
+  const now = new Date(Date.now() + serverOffsetMs);
+  const timeStr = now.toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  });
+  const dateStr = now.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'long', day: 'numeric', month: 'long'
+  });
+  document.getElementById('clockTime').textContent = timeStr;
+  document.getElementById('clockDate').textContent = dateStr;
+
+  // If there's an active session, update the duration text live
+  if (state.open_session) {
+    const start = new Date(state.open_session.punch_in).getTime();
+    const elapsed = Math.floor((Date.now() + serverOffsetMs - start) / 60000);
+    const h = Math.floor(elapsed / 60);
+    const m = elapsed % 60;
+    const inTime = FMT.formatTimeIST(state.open_session.punch_in);
+    document.getElementById('statusSub').textContent =
+      `Since ${inTime} · ${h}h ${String(m).padStart(2,'0')}m`;
+  }
+}
+setInterval(tickClock, 1000);
+
+// ===== STATUS RENDERING =====
+function renderStatus() {
+  const card = document.getElementById('statusCard');
+  const title = document.getElementById('statusTitle');
+  const sub = document.getElementById('statusSub');
+  const btnIn = document.getElementById('btnIn');
+  const btnOut = document.getElementById('btnOut');
+
+  card.classList.remove('working', 'idle', 'lunch', 'unresolved');
+
+  if (state.has_unresolved_open_punch) {
+    card.classList.add('unresolved');
+    title.textContent = 'Previous punch still open';
+    sub.textContent = 'Ask admin to close it before punching in';
+    btnIn.disabled = true;
+    btnOut.disabled = true;
+    return;
+  }
+
+  if (state.open_session) {
+    // Check if we're in lunch window right now
+    const nowIST = new Date(Date.now() + serverOffsetMs);
+    const istTime = new Date(nowIST.getTime() + 5.5 * 60 * 60 * 1000);
+    const mins = istTime.getUTCHours() * 60 + istTime.getUTCMinutes();
+    const inLunch = mins >= 780 && mins < 840;
+
+    if (inLunch) {
+      card.classList.add('lunch');
+      title.textContent = 'Lunch break';
+      const inTime = FMT.formatTimeIST(state.open_session.punch_in);
+      sub.textContent = `These minutes (1-2 PM) won't count · punched in at ${inTime}`;
+    } else {
+      card.classList.add('working');
+      title.textContent = 'You are working';
+      // sub is updated by clock tick
+    }
+    btnIn.disabled = true;
+    btnOut.disabled = false;
+  } else {
+    card.classList.add('idle');
+    title.textContent = 'You are not punched in';
+    sub.textContent = 'Tap Punch In when you start work';
+    btnIn.disabled = false;
+    btnOut.disabled = true;
+  }
+}
+
+function renderSessions() {
+  const ul = document.getElementById('sessionsList');
+  if (!state.today_sessions || state.today_sessions.length === 0) {
+    ul.innerHTML = '<li><span class="muted">No sessions yet today</span></li>';
+    return;
+  }
+  ul.innerHTML = state.today_sessions.map(s => {
+    const inTime = FMT.formatTimeIST(s.punch_in);
+    const outTime = s.punch_out ? FMT.formatTimeIST(s.punch_out) : 'now';
+    const mins = s.minutes_so_far || 0;
+    return `<li><span>${inTime} → ${outTime}</span><span>${FMT.formatMinutes(mins)}</span></li>`;
+  }).join('');
+}
+
+// ===== LOAD STATE =====
+async function refresh() {
+  try {
+    const data = await API.apiFetch('/me/today');
+    const serverTime = new Date(data.server_time).getTime();
+    serverOffsetMs = serverTime - Date.now();
+    state = data;
+    renderStatus();
+    renderSessions();
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// ===== GEOLOCATION =====
+function getLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      return reject(new Error('GPS not available on this device'));
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      err => {
+        if (err.code === 1) reject(new Error('Please enable location permission'));
+        else if (err.code === 2) reject(new Error('No GPS signal. Move to open area.'));
+        else reject(new Error('Could not get location. Please try again.'));
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    );
+  });
+}
+
+// ===== SHEET MODAL =====
+function showSheet(title, message) {
+  const html = `
+    <div class="sheet-backdrop" id="sheetBackdrop">
+      <div class="sheet">
+        <h3>${title}</h3>
+        <p>${message}</p>
+        <button class="btn-primary" id="sheetOk">OK</button>
+      </div>
+    </div>`;
+  document.getElementById('sheetContainer').innerHTML = html;
+  document.getElementById('sheetOk').addEventListener('click', () => {
+    document.getElementById('sheetContainer').innerHTML = '';
+  });
+  document.getElementById('sheetBackdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'sheetBackdrop') {
+      document.getElementById('sheetContainer').innerHTML = '';
+    }
+  });
+}
+
+// ===== PUNCH HANDLERS =====
+async function handlePunchIn() {
+  const btn = document.getElementById('btnIn');
+  btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="icon">⋯</span> GETTING LOCATION';
+
+  try {
+    const loc = await getLocation();
+    btn.innerHTML = '<span class="icon">⋯</span> PUNCHING IN';
+    await API.apiFetch('/punches/in', {
+      method: 'POST',
+      body: JSON.stringify({ latitude: loc.latitude, longitude: loc.longitude })
+    });
+    await refresh();
+  } catch (err) {
+    if (err.code === 'GEOFENCE_VIOLATION') {
+      showSheet('Not at workplace', `You must be at the workplace to punch in. You are ${err.details.distance_meters}m away.`);
+    } else if (err.code === 'ALREADY_PUNCHED_IN') {
+      showSheet('Already punched in', 'You have an open punch session. Ask admin to close it.');
+    } else {
+      showSheet('Cannot punch in', err.message);
+    }
+    btn.innerHTML = original;
+    btn.disabled = false;
+    await refresh();
+  }
+}
+
+async function handlePunchOut() {
+  const btn = document.getElementById('btnOut');
+  btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="icon">⋯</span> PUNCHING OUT';
+
+  try {
+    let loc = { latitude: null, longitude: null };
+    try { loc = await getLocation(); } catch (_) {}
+    await API.apiFetch('/punches/out', {
+      method: 'POST',
+      body: JSON.stringify({ latitude: loc.latitude, longitude: loc.longitude })
+    });
+    await refresh();
+  } catch (err) {
+    showSheet('Cannot punch out', err.message);
+    btn.innerHTML = original;
+    btn.disabled = false;
+    await refresh();
+  }
+}
+
+document.getElementById('btnIn').addEventListener('click', handlePunchIn);
+document.getElementById('btnOut').addEventListener('click', handlePunchOut);
+
+// Initial load + periodic refresh
+refresh();
+setInterval(refresh, 30000);
+tickClock();
+</script>
+</body>
+</html>
