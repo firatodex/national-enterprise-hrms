@@ -7,6 +7,7 @@ const router = express.Router();
 router.post('/login', async (req, res) => {
   try {
     const { employee_code, password } = req.body;
+    console.log('Login attempt:', employee_code);
 
     if (!employee_code || !password) {
       return res.status(400).json({ error: 'Employee code and password required' });
@@ -18,11 +19,14 @@ router.post('/login', async (req, res) => {
       .eq('employee_code', employee_code)
       .single();
 
+    console.log('User query result:', { user, error });
+
     if (error || !user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const passwordMatch = await bcryptjs.compare(password, user.password_hash);
+    console.log('Password match:', passwordMatch);
     
     if (!passwordMatch) {
       return res.status(401).json({ error: 'Invalid credentials' });
