@@ -30,3 +30,11 @@ app.get('*', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server on port ${PORT}`));
+const adminRoutes  = require('./routes/admin');
+const salaryRoutes = require('./routes/salary');
+const punchRoutes  = require('./routes/punches');
+
+app.use('/api/v1/auth',   authRoutes);
+app.use('/api/v1/admin',  adminRoutes);
+app.use('/api/v1/salary', salaryRoutes);
+app.use('/api/v1',        punchRoutes);   // /punches/in, /punches/out, /me/today
