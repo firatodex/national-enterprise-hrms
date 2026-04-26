@@ -1,8 +1,8 @@
 FROM node:18-alpine
-WORKDIR /app/backend
+WORKDIR /app
 COPY backend/package*.json ./
-RUN npm install
+RUN npm install --omit=dev
 COPY backend/src ./src
-COPY backend/db ./db
-EXPOSE 3002
-CMD ["npm", "start"]
+RUN mkdir -p ./db
+EXPOSE 3000
+CMD ["node", "src/index.js"]
