@@ -17,3 +17,9 @@
     "@supabase/supabase-js": "^2.38.0"
   }
 }
+"scripts": {
+  "start": "node src/index.js",
+  "dev": "nodemon src/index.js",
+  "db:init": "node src/utils/init-db.js",
+  "db:reset": "node src/utils/init-db.js --force"
+}
