@@ -7,7 +7,11 @@ const DB_PATH = path.join(__dirname, '..', '..', 'db', 'hrms.db');
 const DB_DIR = path.dirname(DB_PATH);
 
 if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
-if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
+if (fs.existsSync(DB_PATH)) {
+  console.log('Database already exists. Run with --force to reset.');
+  if (!process.argv.includes('--force')) process.exit(0);
+  fs.unlinkSync(DB_PATH);
+}
 
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
