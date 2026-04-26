@@ -1,8 +1,8 @@
-import express from 'express';
+const express = require('express');
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import authRoutes from './routes/auth.js';
+const authRoutes = require('./routes/auth');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
