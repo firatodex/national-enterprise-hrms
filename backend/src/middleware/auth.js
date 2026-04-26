@@ -2,8 +2,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../utils/db');
 
-const JWT_SECRET = 'national-enterprise-hrms-secret-change-in-production';
-const ACCESS_TOKEN_EXPIRY = '1h';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set');const ACCESS_TOKEN_EXPIRY = '1h';
 
 function generateAccessToken(user) {
   return jwt.sign(
