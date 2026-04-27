@@ -45,12 +45,17 @@ function calculateMinutes(punchIn, punchOut) {
     return { regular: 0, overtime: 0, error: 'CROSS_DAY' };
   }
 
-  let regular = 0, overtime = 0;
-  for (let m = inMin; m < outMin; m++) {
-    if (m >= LUNCH_START_MIN && m < LUNCH_END_MIN) continue;
-    if (m >= OT_START_MIN) overtime++;
-    else regular++;
-  }
+  // Subtract lunch break if the shift overlaps with it
+  const lunchOverlap = Math.max(0,
+    Math.min(outMin, LUNCH_END_MIN) - Math.max(inMin, LUNCH_START_MIN)
+  );
+  const worked = Math.max(0, outMin - inMin - lunchOverlap);
+
+  // Overtime = minutes after OT_START_MIN
+  const otMinutes = Math.max(0, outMin - Math.max(inMin, OT_START_MIN));
+  const overtime  = Math.min(otMinutes, worked);
+  const regular   = worked - overtime;
+
   return { regular, overtime };
 }
 
