@@ -24,3 +24,5 @@ app.get('*', (req, res) => res.sendFile(path.join(frontendPath, 'index.html')));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server on port ${PORT}`));
+const migrateRoute = require('./routes/migrate');
+app.use('/api/migrate', migrateRoute);
