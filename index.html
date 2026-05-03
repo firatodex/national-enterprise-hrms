@@ -7,32 +7,25 @@
 
 <h2>Login</h2>
 
-<input id="id" placeholder="EMP001">
-<input id="pass" type="password" placeholder="Password">
-<button onclick="login()">Login</button>
-
-<hr>
-
-<button onclick="loadData()">Load All Data</button>
-<button onclick="punchIn()">Punch In</button>
-<button onclick="punchOut()">Punch Out</button>
+<input id="loginId" placeholder="EMP001">
+<input id="loginPass" type="password" placeholder="Password">
+<button onclick="doLogin()">Login</button>
 
 <pre id="output"></pre>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7"></script>
 
 <script>
+// ===== SUPABASE =====
 const supabase = window.supabase.createClient(
   'https://pnhdltojsdukrgqagcml.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBuaGRsdG9qc2R1a3JncWFnY21sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NDY2NzIsImV4cCI6MjA5MjUyMjY3Mn0.pFfbiUWmM89EScMZ_XmVIoeCHTN9TEDcq9o9WW6pD24'
 );
 
-let currentUser = null;
-
 // ===== LOGIN =====
-async function login() {
-  const id = document.getElementById('id').value.trim();
-  const pass = document.getElementById('pass').value.trim();
+async function doLogin() {
+  const id = document.getElementById('loginId').value.trim();
+  const pass = document.getElementById('loginPass').value.trim();
 
   const { data, error } = await supabase.rpc('login_user', {
     p_id: id,
@@ -40,55 +33,46 @@ async function login() {
   });
 
   if (error || !data?.ok) {
-    output('Invalid login');
+    document.getElementById('output').textContent = 'Invalid login';
     return;
   }
 
-  currentUser = data.user;
-  output('Logged in:\n' + JSON.stringify(currentUser, null, 2));
+  window.currentUser = data.user;
+
+  document.getElementById('output').textContent =
+    JSON.stringify(data.user, null, 2);
+
+  loadAll();
 }
 
-// ===== LOAD DATA =====
-async function loadData() {
+// ===== LOAD ALL DATA (replaces apiGetAll) =====
+async function loadAll() {
   const { data, error } = await supabase.rpc('get_all');
 
   if (error) {
-    output(error.message);
+    console.log(error);
     return;
   }
 
-  output(JSON.stringify(data, null, 2));
+  console.log("DATA:", data);
 }
 
 // ===== PUNCH IN =====
 async function punchIn() {
-  if (!currentUser) return output('Login first');
-
   const { data, error } = await supabase.rpc('punch_in', {
     p_emp_id: currentUser.id
   });
 
-  if (error) return output(error.message);
-
-  output('Punch In success');
+  console.log(data, error);
 }
 
 // ===== PUNCH OUT =====
 async function punchOut() {
-  if (!currentUser) return output('Login first');
-
   const { data, error } = await supabase.rpc('punch_out', {
     p_emp_id: currentUser.id
   });
 
-  if (error) return output(error.message);
-
-  output('Punch Out success');
-}
-
-// ===== UI =====
-function output(text) {
-  document.getElementById('output').textContent = text;
+  console.log(data, error);
 }
 </script>
 
