@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>HRMS</title>
+</head>
+<body>
+
+<h2>Login</h2>
+
+<input id="id" placeholder="EMP001">
+<input id="pass" placeholder="Password" type="password">
+<button onclick="login()">Login</button>
+
+<pre id="output"></pre>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7"></script>
+
+<script>
+const supabase = window.supabase.createClient(
+  'https://pnhdltojsdukrgqagcml.supabase.co',
+  'YOUR_ANON_KEY'
+);
+
+async function login() {
+  const id = document.getElementById('id').value.trim();
+  const pass = document.getElementById('pass').value.trim();
+
+  const { data, error } = await supabase.rpc('login_user', {
+    p_id: id,
+    p_password: pass
+  });
+
+  if (error || !data?.ok) {
+    document.getElementById('output').textContent = 'Invalid login';
+    return;
+  }
+
+  document.getElementById('output').textContent =
+    JSON.stringify(data.user, null, 2);
+}
+</script>
+
+</body>
+</html>
