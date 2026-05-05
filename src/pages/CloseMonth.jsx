@@ -22,8 +22,13 @@ export default function CloseMonth() {
     monthOptions.push({ yr, mo })
   }
 
-  const alreadyClosed = db.monthCloses.some((mc) => mc.year === selYr && mc.month === selMo)
-  const closedRecords = db.monthCloses.filter((mc) => mc.year === selYr && mc.month === selMo)
+  // FIX #8: coerce year/month to Number before comparing
+  const alreadyClosed = db.monthCloses.some(
+    (mc) => Number(mc.year) === selYr && Number(mc.month) === selMo
+  )
+  const closedRecords = db.monthCloses.filter(
+    (mc) => Number(mc.year) === selYr && Number(mc.month) === selMo
+  )
 
   const handleSelChange = (val) => {
     const [yr, mo] = val.split('-').map(Number)
@@ -39,15 +44,18 @@ export default function CloseMonth() {
 
   const doClose = async () => {
     if (!window.confirm(`Finalise salary for ${fmtMonthYear(selYr, selMo)}?\n\nThis cannot be undone.`)) return
+
+    // FIX #2: include ALL employees, even those with zero attendance
     const salaryData = emps.map((e) => {
       const s = calcSalary(e.id, selYr, selMo, db.punches, db.users)
-      if (!s) return null
       const advDed = getAdvanceTotal(e.id, selYr, selMo, db.advances)
       const carryFwd = getCarryForward(e.id, selYr, selMo, db.monthCloses)
       const loanDed = parseInt(loanDeds[e.id]) || 0
-      const netPay = s.grossPay - advDed - carryFwd - loanDed
-      return { empId: e.id, totalMinutes: s.totalMinutes, grossPay: s.grossPay, loanDed, advDed, carryForward: carryFwd, netPay }
-    }).filter(Boolean)
+      const grossPay = s ? s.grossPay : 0
+      const totalMinutes = s ? s.totalMinutes : 0
+      const netPay = grossPay - advDed - carryFwd - loanDed
+      return { empId: e.id, totalMinutes, grossPay, loanDed, advDed, carryForward: carryFwd, netPay }
+    })
 
     showToast('Closing month…', 'var(--accent)')
     const r = await apiCloseMonth(selYr, selMo, salaryData, currentUser.name)
@@ -57,8 +65,8 @@ export default function CloseMonth() {
 
   const pastMonths = {}
   db.monthCloses.forEach((mc) => {
-    const key = `${mc.year}-${pad(mc.month)}`
-    if (!pastMonths[key]) pastMonths[key] = { year: mc.year, month: mc.month, count: 0, gross: 0, closedAt: mc.closed_at }
+    const key = `${mc.year}-${pad(Number(mc.month))}`
+    if (!pastMonths[key]) pastMonths[key] = { year: Number(mc.year), month: Number(mc.month), count: 0, gross: 0, closedAt: mc.closed_at }
     pastMonths[key].count++
     pastMonths[key].gross += Number(mc.gross_pay)
   })
@@ -82,7 +90,7 @@ export default function CloseMonth() {
         <select className="inp" style={{ width: 240 }} value={`${selYr}-${pad(selMo)}`} onChange={(e) => handleSelChange(e.target.value)}>
           {monthOptions.map(({ yr, mo }) => {
             const val = `${yr}-${pad(mo)}`
-            const closed = db.monthCloses.some((mc) => mc.year === yr && mc.month === mo)
+            const closed = db.monthCloses.some((mc) => Number(mc.year) === yr && Number(mc.month) === mo)
             const tag = closed ? ' ✓' : yr === curYr && mo === curMo ? ' (Current)' : ''
             return <option key={val} value={val}>{fmtMonthYear(yr, mo)}{tag}</option>
           })}
@@ -116,10 +124,10 @@ export default function CloseMonth() {
                         <td className="fw6">{e ? e.name : mc.emp_id} <span className="text-muted text-xs">{mc.emp_id}</span></td>
                         <td>{mc.total_minutes} min</td>
                         <td className="text-green fw6">{fmtRs(mc.gross_pay)}</td>
-                        <td className="text-amber fw6">{mc.advance_deductions > 0 ? '−' + fmtRs(mc.advance_deductions) : '—'}</td>
-                        <td className="text-red">{mc.loan_deductions > 0 ? '−' + fmtRs(mc.loan_deductions) : '—'}</td>
-                        <td className="text-red">{mc.carry_forward > 0 ? '−' + fmtRs(mc.carry_forward) : '—'}</td>
-                        <td className={`fw7 ${mc.net_pay < 0 ? 'text-red' : 'text-green'}`}>{fmtRs(mc.net_pay)}</td>
+                        <td className="text-amber fw6">{Number(mc.advance_deductions) > 0 ? '−' + fmtRs(mc.advance_deductions) : '—'}</td>
+                        <td className="text-red">{Number(mc.loan_deductions) > 0 ? '−' + fmtRs(mc.loan_deductions) : '—'}</td>
+                        <td className="text-red">{Number(mc.carry_forward) > 0 ? '−' + fmtRs(mc.carry_forward) : '—'}</td>
+                        <td className={`fw7 ${Number(mc.net_pay) < 0 ? 'text-red' : 'text-green'}`}>{fmtRs(mc.net_pay)}</td>
                       </tr>
                     )
                   })}
@@ -146,19 +154,30 @@ export default function CloseMonth() {
                   </tr>
                 </thead>
                 <tbody>
+                  {/* FIX #2: show ALL employees, absent ones show 0 */}
                   {emps.map((e) => {
                     const s = calcSalary(e.id, selYr, selMo, db.punches, db.users)
-                    if (!s) return null
+                    const grossPay = s ? s.grossPay : 0
+                    const totalMinutes = s ? s.totalMinutes : 0
+                    const daysPresent = s ? s.daysPresent : 0
                     const advDed = getAdvanceTotal(e.id, selYr, selMo, db.advances)
                     const carryFwd = getCarryForward(e.id, selYr, selMo, db.monthCloses)
-                    const net = getNetPreview(e.id, s.grossPay)
+                    const net = getNetPreview(e.id, grossPay)
                     return (
                       <tr key={e.id}>
                         <td className="fw6">{e.name} <span className="text-muted text-xs">{e.id}</span></td>
-                        <td>{s.totalMinutes} min ({s.daysPresent}d)</td>
-                        <td className="text-green fw6">{fmtRs(s.grossPay)}</td>
-                        <td className="text-amber fw6" style={{ background: 'var(--amber-light)' }}>{advDed > 0 ? '−' + fmtRs(advDed) : <span className="text-muted">—</span>}</td>
-                        <td className="text-red" style={{ background: 'var(--red-light)' }}>{carryFwd > 0 ? '−' + fmtRs(carryFwd) : <span className="text-muted">—</span>}</td>
+                        <td>
+                          {totalMinutes > 0
+                            ? `${totalMinutes} min (${daysPresent}d)`
+                            : <span className="badge b-gray">Absent</span>}
+                        </td>
+                        <td className="text-green fw6">{fmtRs(grossPay)}</td>
+                        <td className="text-amber fw6" style={{ background: 'var(--amber-light)' }}>
+                          {advDed > 0 ? '−' + fmtRs(advDed) : <span className="text-muted">—</span>}
+                        </td>
+                        <td className="text-red" style={{ background: 'var(--red-light)' }}>
+                          {carryFwd > 0 ? '−' + fmtRs(carryFwd) : <span className="text-muted">—</span>}
+                        </td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ color: 'var(--muted)', fontSize: 13 }}>₹</span>
