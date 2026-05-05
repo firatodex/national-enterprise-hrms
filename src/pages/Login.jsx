@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -7,16 +7,13 @@ export default function Login() {
   const [pass, setPass] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const { login, currentUser, loadData } = useAuth()
+  const { login, currentUser } = useAuth()
   const navigate = useNavigate()
 
-  useEffect(() => {
-    if (currentUser) {
-      loadData().then(() => {
-        navigate(currentUser.role === 'employee' ? '/punch' : '/dashboard', { replace: true })
-      })
-    }
-  }, [currentUser])
+  // Already logged in → redirect immediately
+  if (currentUser) {
+    return <Navigate to={currentUser.role === 'employee' ? '/punch' : '/dashboard'} replace />
+  }
 
   const doLogin = async () => {
     if (!uid || !pass) { setErr('Please enter Employee ID and password'); return }
