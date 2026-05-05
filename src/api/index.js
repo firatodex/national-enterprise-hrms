@@ -5,11 +5,11 @@ export async function fetchAll() {
   const [users, punches, loans, loanPayments, advances, monthCloses, config] =
     await Promise.all([
       supabase.from('users').select('*').order('id'),
-      supabase.from('punches').select('*').order('date').order('session'),
+      supabase.from('punches').select('*').order('date').order('session').limit(50000),
       supabase.from('loans').select('*').order('date'),
-      supabase.from('loan_payments').select('*').order('created_at'),
-      supabase.from('advances').select('*').order('date'),
-      supabase.from('month_closes').select('*').order('year').order('month'),
+      supabase.from('loan_payments').select('*').order('created_at').limit(10000),
+      supabase.from('advances').select('*').order('date').limit(10000),
+      supabase.from('month_closes').select('*').order('year').order('month').limit(10000),
       supabase.from('config').select('*'),
     ])
 
