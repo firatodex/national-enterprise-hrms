@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { calcSalary, getAdvanceTotal, getCarryForward, fmtRs, fmtDate, fmtMonthYear, todayStr, pad, fmt12, timeToMins, DEPT_COLORS } from '../utils/helpers'
+import { calcSalary, getAdvanceTotal, getCarryForward, fmtRs, fmtDate, fmtMonthYear, todayStr, pad, fmt12, DEPT_COLORS } from '../utils/helpers'
 import { roleBadge, deptBadge } from '../utils/badges'
 
 export default function Reports() {
@@ -9,20 +9,25 @@ export default function Reports() {
   const [yr, mo] = today.split('-').map(Number)
   const emps = db.users.filter((u) => (u.role === 'employee' || u.role === 'admin') && u.active)
 
-  let tMin = 0, tGross = 0
+  // FIX #1: compute salary once per employee, reuse for all displays
+  const salaryMap = {}
   emps.forEach((e) => {
-    const s = calcSalary(e.id, yr, mo, db.punches, db.users)
-    if (s) { tMin += s.totalMinutes; tGross += s.grossPay }
+    salaryMap[e.id] = calcSalary(e.id, yr, mo, db.punches, db.users)
   })
 
+  let tMin = 0, tGross = 0
   const deptPay = {}
   emps.forEach((e) => {
-    const s = calcSalary(e.id, yr, mo, db.punches, db.users)
-    if (s) deptPay[e.dept] = (deptPay[e.dept] || 0) + s.grossPay
+    const s = salaryMap[e.id]
+    if (s) {
+      tMin += s.totalMinutes
+      tGross += s.grossPay
+      deptPay[e.dept] = (deptPay[e.dept] || 0) + s.grossPay
+    }
   })
 
   const monthOpts = new Set([`${yr}-${pad(mo)}`])
-  db.monthCloses.forEach((mc) => monthOpts.add(`${mc.year}-${pad(mc.month)}`))
+  db.monthCloses.forEach((mc) => monthOpts.add(`${mc.year}-${pad(Number(mc.month))}`))
   const sortedMonths = [...monthOpts].sort().reverse()
 
   const canExport = currentUser.role === 'owner' || db.adminPerms.canExportSlip === true
@@ -35,7 +40,9 @@ export default function Reports() {
     const emp = db.users.find((u) => u.id === expEmp)
     if (!emp) return
 
-    const closedRecord = db.monthCloses.find((mc) => mc.emp_id === expEmp && mc.year === ey && mc.month === em)
+    const closedRecord = db.monthCloses.find(
+      (mc) => mc.emp_id === expEmp && Number(mc.year) === ey && Number(mc.month) === em
+    )
     const s = calcSalary(expEmp, ey, em, db.punches, db.users)
     if (!s && !closedRecord) { alert('No data for this month'); return }
 
@@ -56,7 +63,7 @@ export default function Reports() {
 
     const fmtPDFDate = (ds) => {
       const s = String(ds).substring(0, 10)
-      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) { const p = s.split('-'); return p[2] + p[1] + p[0] }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) { const p = s.split('-'); return p[2] + '/' + p[1] + '/' + p[0] }
       return s
     }
 
@@ -127,7 +134,7 @@ ${dayBreakdown.length > 0 ? `
 ${dayRows}
 <tr class="tfoot"><td colspan="3">Total</td><td class="r">${fmtM(totalMinutes)}</td><td class="r mono">&#8377;${fmtINR(grossPay)}</td></tr>
 </tbody>
-</table>` : ''}
+</table>` : '<p style="color:#999;font-size:11px;margin-bottom:24px">No attendance recorded for this month.</p>'}
 <div class="earn">
 <div class="erow"><div><div class="elbl">Work Pay</div><div class="esub">${fmtM(totalMinutes)} &times; &#8377;${ratePerMin}/min (lunch 1–2 PM excluded)</div></div><div class="eamt egrn">&#8377;${fmtINR(grossPay)}</div></div>
 ${advDed > 0 ? `<div class="erow"><div class="elbl">Advance Deduction</div><div class="eamt ered">&minus;&#8377;${fmtINR(advDed)}</div></div>` : ''}
@@ -138,7 +145,7 @@ ${carryFwd > 0 ? `<div class="erow"><div><div class="elbl">Carry Forward</div><d
 <div><div class="net-l">Net Pay</div>${netPay < 0 ? '<div class="net-l2">Negative balance carries forward to next month</div>' : ''}</div>
 <div class="net-v">&#8377;${fmtINR(netPay)}</div>
 </div>
-<div class="foot"><span>National Enterprise HRMS</span><span>${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '')}</span></div>
+<div class="foot"><span>National Enterprise HRMS</span><span>${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span></div>
 </div>
 <div class="noprint">
 <button class="btn-s" onclick="window.print()">Save as PDF</button>
@@ -232,7 +239,7 @@ ${carryFwd > 0 ? `<div class="erow"><div><div class="elbl">Carry Forward</div><d
             <thead><tr><th>Employee</th><th>Dept</th><th>Days</th><th>Total Time</th><th>Rate/Day</th><th>Gross Pay</th></tr></thead>
             <tbody>
               {emps.map((e) => {
-                const s = calcSalary(e.id, yr, mo, db.punches, db.users)
+                const s = salaryMap[e.id]
                 if (!s) return null
                 return (
                   <tr key={e.id}>
