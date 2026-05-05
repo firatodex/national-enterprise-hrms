@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
 import { apiAddEmployee, apiChangePassword, apiChangeDailyWage, apiChangeRole } from '../api'
-import { initials, fmtRs, fmtDate, todayStr, DEPT_COLORS, capitalize, roleBadge, deptBadge } from '../utils/helpers'
+import { initials, fmtRs, fmtDate, todayStr, DEPT_COLORS, capitalize } from '../utils/helpers'
+import { roleBadge, deptBadge } from '../utils/badges'
 
 const DEPTS = ['Production', 'Quality Control', 'Maintenance', 'Logistics', 'Admin']
 

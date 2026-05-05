@@ -1,5 +1,6 @@
 import { useAuth } from '../context/AuthContext'
-import { calcSalary, fmtRs, todayStr, DEPT_COLORS, initials, roleBadge } from '../utils/helpers'
+import { calcSalary, fmtRs, todayStr, DEPT_COLORS, initials } from '../utils/helpers'
+import { roleBadge } from '../utils/badges'
 
 export default function Payroll() {
   const { db } = useAuth()

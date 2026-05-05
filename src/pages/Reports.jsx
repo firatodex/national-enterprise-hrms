@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { calcSalary, getAdvanceTotal, getCarryForward, fmtRs, fmtDate, fmtMonthYear, todayStr, pad, fmt12, timeToMins, DEPT_COLORS, roleBadge, deptBadge } from '../utils/helpers'
+import { calcSalary, getAdvanceTotal, getCarryForward, fmtRs, fmtDate, fmtMonthYear, todayStr, pad, fmt12, timeToMins, DEPT_COLORS } from '../utils/helpers'
+import { roleBadge, deptBadge } from '../utils/badges'
 
 export default function Reports() {
   const { currentUser, db, canDo } = useAuth()

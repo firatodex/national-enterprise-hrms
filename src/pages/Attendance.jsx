@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
 import { apiManualPunch } from '../api'
-import { fmt12, timeToMins, lunchDeduct, todayStr, nowTime, fmtRs, roleBadge, DEPT_COLORS, initials } from '../utils/helpers'
+import { fmt12, timeToMins, lunchDeduct, todayStr, nowTime, fmtRs, DEPT_COLORS, initials } from '../utils/helpers'
+import { roleBadge } from '../utils/badges'
 
 export default function Attendance() {
   const { db, refresh } = useAuth()
