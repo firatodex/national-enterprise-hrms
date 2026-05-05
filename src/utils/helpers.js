@@ -29,12 +29,13 @@ export const fmt12 = (t) => {
   return h12 + ':' + pad(m) + ' ' + ampm
 }
 
+// FIX #12: readable date format DD/MM/YYYY instead of DDMMYYYY
 export const fmtDate = (dateStr) => {
   if (!dateStr) return '—'
   const s = String(dateStr).substring(0, 10)
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
     const parts = s.split('-')
-    return parts[2] + parts[1] + parts[0]
+    return parts[2] + '/' + parts[1] + '/' + parts[0]
   }
   return s
 }
@@ -158,7 +159,10 @@ export const calcSalary = (empId, yr, mo, allPunches, users) => {
       }
       dayBreakdown.push({
         date: dt,
-        day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(dt).getDay()],
+        // FIX #5: parse date as local time to avoid UTC-midnight timezone shift
+        day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][
+          new Date(dt + 'T00:00:00').getDay()
+        ],
         sessions: dayData[dt].sessions,
         totalMin: dayTotal,
       })
@@ -187,10 +191,9 @@ export const getCarryForward = (empId, yr, mo, monthCloses) => {
   const prevMo = mo === 1 ? 12 : mo - 1
   const prevYr = mo === 1 ? yr - 1 : yr
   const prev = monthCloses.find(
-    (mc) => mc.emp_id === empId && mc.year === prevYr && mc.month === prevMo
+    // FIX #8: coerce to Number to handle Supabase returning strings
+    (mc) => mc.emp_id === empId && Number(mc.year) === prevYr && Number(mc.month) === prevMo
   )
-  if (prev && prev.net_pay < 0) return Math.abs(prev.net_pay)
+  if (prev && Number(prev.net_pay) < 0) return Math.abs(Number(prev.net_pay))
   return 0
 }
-
-
