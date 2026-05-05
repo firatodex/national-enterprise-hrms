@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
 import { apiSetPermissions } from '../api'
@@ -16,6 +16,11 @@ export default function Settings() {
   const { currentUser, db, refresh } = useAuth()
   const showToast = useToast()
   const [perms, setPerms] = useState({ ...db.adminPerms })
+
+  // FIX #9: sync perms when db.adminPerms loads after mount
+  useEffect(() => {
+    setPerms({ ...db.adminPerms })
+  }, [db.adminPerms])
 
   if (currentUser.role !== 'owner') {
     return (
