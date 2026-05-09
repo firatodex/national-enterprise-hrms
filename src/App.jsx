@@ -14,26 +14,47 @@ import CloseMonth from './pages/CloseMonth'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 
+// Checks login only
 function PrivateRoute({ children }) {
   const { currentUser, loading } = useAuth()
   if (loading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          color: 'var(--muted)',
-          fontSize: 15,
-          gap: 12,
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--muted)', fontSize: 15 }}>
         Loading…
       </div>
     )
   }
   if (!currentUser) return <Navigate to="/login" replace />
+  return <Layout>{children}</Layout>
+}
+
+// Checks login AND role — redirects employees to /punch if they try to access admin pages
+function AdminRoute({ children }) {
+  const { currentUser, loading } = useAuth()
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--muted)', fontSize: 15 }}>
+        Loading…
+      </div>
+    )
+  }
+  if (!currentUser) return <Navigate to="/login" replace />
+  if (currentUser.role === 'employee') return <Navigate to="/punch" replace />
+  return <Layout>{children}</Layout>
+}
+
+// Owner-only route
+function OwnerRoute({ children }) {
+  const { currentUser, loading } = useAuth()
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--muted)', fontSize: 15 }}>
+        Loading…
+      </div>
+    )
+  }
+  if (!currentUser) return <Navigate to="/login" replace />
+  if (currentUser.role !== 'owner') return <Navigate to="/dashboard" replace />
   return <Layout>{children}</Layout>
 }
 
@@ -49,24 +70,23 @@ export default function App() {
         <ToastProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route
-              path="/"
-              element={
-                <PrivateRoute>
-                  <DefaultRedirect />
-                </PrivateRoute>
-              }
-            />
-            <Route path="/dashboard"   element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-            <Route path="/punch"       element={<PrivateRoute><Punch /></PrivateRoute>} />
-            <Route path="/employees"   element={<PrivateRoute><Employees /></PrivateRoute>} />
-            <Route path="/attendance"  element={<PrivateRoute><Attendance /></PrivateRoute>} />
-            <Route path="/payroll"     element={<PrivateRoute><Payroll /></PrivateRoute>} />
-            <Route path="/loans"       element={<PrivateRoute><Loans /></PrivateRoute>} />
-            <Route path="/advances"    element={<PrivateRoute><Advances /></PrivateRoute>} />
-            <Route path="/close-month" element={<PrivateRoute><CloseMonth /></PrivateRoute>} />
-            <Route path="/reports"     element={<PrivateRoute><Reports /></PrivateRoute>} />
-            <Route path="/settings"    element={<PrivateRoute><Settings /></PrivateRoute>} />
+            <Route path="/" element={<PrivateRoute><DefaultRedirect /></PrivateRoute>} />
+
+            {/* Employee + Admin + Owner */}
+            <Route path="/punch" element={<PrivateRoute><Punch /></PrivateRoute>} />
+
+            {/* Admin + Owner only */}
+            <Route path="/dashboard"   element={<AdminRoute><Dashboard /></AdminRoute>} />
+            <Route path="/employees"   element={<AdminRoute><Employees /></AdminRoute>} />
+            <Route path="/attendance"  element={<AdminRoute><Attendance /></AdminRoute>} />
+            <Route path="/payroll"     element={<AdminRoute><Payroll /></AdminRoute>} />
+            <Route path="/loans"       element={<AdminRoute><Loans /></AdminRoute>} />
+            <Route path="/advances"    element={<AdminRoute><Advances /></AdminRoute>} />
+            <Route path="/close-month" element={<AdminRoute><CloseMonth /></AdminRoute>} />
+            <Route path="/reports"     element={<AdminRoute><Reports /></AdminRoute>} />
+
+            {/* Owner only */}
+            <Route path="/settings" element={<OwnerRoute><Settings /></OwnerRoute>} />
           </Routes>
         </ToastProvider>
       </AuthProvider>
