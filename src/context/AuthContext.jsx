@@ -21,17 +21,40 @@ export function AuthProvider({ children }) {
   })
   const [loading, setLoading] = useState(true)
 
-  // On mount: restore session AND load data before showing anything
   useEffect(() => {
     const init = async () => {
       const saved = localStorage.getItem(SESSION_KEY)
       if (saved) {
         try {
-          const user = JSON.parse(saved)
-          setCurrentUser(user)
-          // Load DB so pages render with data immediately
+          const savedUser = JSON.parse(saved)
+          // Always re-validate role from Supabase — never trust localStorage role
           const data = await fetchAll()
-          if (data) setDb(data)
+          if (data) {
+            setDb(data)
+            const freshUser = data.users.find((u) => u.id === savedUser.id)
+            if (freshUser && freshUser.active) {
+              // Use role/name/wage from Supabase, not from localStorage
+              const validated = {
+                id: freshUser.id,
+                name: freshUser.name,
+                role: freshUser.role,
+                username: freshUser.username,
+                dept: freshUser.dept,
+                daily_wage: freshUser.daily_wage,
+                phone: freshUser.phone,
+                join_date: freshUser.join_date,
+                active: freshUser.active,
+              }
+              setCurrentUser(validated)
+              localStorage.setItem(SESSION_KEY, JSON.stringify(validated))
+            } else {
+              // User deactivated or not found — clear session
+              localStorage.removeItem(SESSION_KEY)
+            }
+          } else {
+            // Fetch failed — restore from localStorage as fallback
+            setCurrentUser(savedUser)
+          }
         } catch (e) {
           console.error('Session restore failed', e)
           localStorage.removeItem(SESSION_KEY)
