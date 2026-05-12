@@ -27,13 +27,14 @@ export function AuthProvider({ children }) {
       if (saved) {
         try {
           const savedUser = JSON.parse(saved)
-          // Always re-validate role from Supabase — never trust localStorage role
+          // Restore session immediately so UI shows without waiting for fetchAll
+          setCurrentUser(savedUser)
+          // Then validate role from Supabase in background
           const data = await fetchAll()
           if (data) {
             setDb(data)
             const freshUser = data.users.find((u) => u.id === savedUser.id)
             if (freshUser && freshUser.active) {
-              // Use role/name/wage from Supabase, not from localStorage
               const validated = {
                 id: freshUser.id,
                 name: freshUser.name,
@@ -48,16 +49,15 @@ export function AuthProvider({ children }) {
               setCurrentUser(validated)
               localStorage.setItem(SESSION_KEY, JSON.stringify(validated))
             } else {
-              // User deactivated or not found — clear session
+              // User deactivated — force logout
+              setCurrentUser(null)
               localStorage.removeItem(SESSION_KEY)
             }
-          } else {
-            // Fetch failed — restore from localStorage as fallback
-            setCurrentUser(savedUser)
           }
         } catch (e) {
           console.error('Session restore failed', e)
           localStorage.removeItem(SESSION_KEY)
+          setCurrentUser(null)
         }
       }
       setLoading(false)
@@ -77,14 +77,19 @@ export function AuthProvider({ children }) {
   }
 
   const login = async (uid, pass) => {
+    // Step 1: authenticate — fast, only hits users table
     const result = await _apiLogin(uid, pass)
-    if (result.ok) {
-      const user = { ...result.user }
-      delete user.password
-      setCurrentUser(user)
-      localStorage.setItem(SESSION_KEY, JSON.stringify(user))
-      await loadData()
-    }
+    if (!result.ok) return result
+
+    // Step 2: set user immediately so navigate works without delay
+    const user = { ...result.user }
+    delete user.password
+    setCurrentUser(user)
+    localStorage.setItem(SESSION_KEY, JSON.stringify(user))
+
+    // Step 3: load full DB in background — don't block login on this
+    loadData()
+
     return result
   }
 
