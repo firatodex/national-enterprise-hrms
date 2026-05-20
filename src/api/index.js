@@ -288,6 +288,17 @@ export async function apiAddAdvance(empId, amount, date, notes, addedBy) {
 }
 
 export async function apiCloseMonth(year, month, salaryData, closedBy) {
+  // Double-close protection: check if already closed
+  const { data: existing } = await supabase
+    .from('month_closes')
+    .select('id')
+    .eq('year', year)
+    .eq('month', month)
+    .limit(1)
+  if (existing && existing.length > 0) {
+    return { ok: false, err: 'This month is already closed.' }
+  }
+
   const rows = salaryData.map((d) => ({
     emp_id: d.empId,
     year,
