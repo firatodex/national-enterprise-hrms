@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
-import { apiAddLoan, apiRecordLoanPayment, apiCloseLoan } from '../api'
+import { apiAddLoan, apiRecordLoanPayment, apiCloseLoan, apiDeleteLoan, apiDeleteLoanPayment } from '../api'
 import { fmtRs, fmtDate, todayStr, pad, fmtMonthYear } from '../utils/helpers'
 
 // Generate last 12 months as dropdown options
@@ -84,6 +84,21 @@ export default function Loans() {
 
   const openLedger = (loan) => { setSelLoan(loan); setModal('ledger') }
 
+  const deleteLoan = async (loan) => {
+    const e = empById(loan.emp_id)
+    if (!window.confirm(`Delete loan of ${fmtRs(loan.total)} for ${e ? e.name : loan.emp_id}?\n\nAll payment history for this loan will also be deleted. This cannot be undone.`)) return
+    const r = await apiDeleteLoan(loan.id)
+    if (r.ok) { showToast('Loan deleted'); await refresh() }
+    else showToast(r.err, 'var(--red)')
+  }
+
+  const deletePayment = async (payment) => {
+    if (!window.confirm(`Delete payment of ${fmtRs(payment.amount)}?\n\nThis will reverse the paid amount on the loan. Cannot be undone.`)) return
+    const r = await apiDeleteLoanPayment(payment.id, payment.loan_id, payment.amount)
+    if (r.ok) { showToast('Payment deleted and loan balance reversed'); await refresh() }
+    else showToast(r.err, 'var(--red)')
+  }
+
   // Format month value "YYYY-MM" to display label
   const fmtMonthVal = (val) => {
     if (!val) return '—'
@@ -139,6 +154,7 @@ export default function Loans() {
                         <button className="btn btn-outline btn-sm" onClick={() => openLedger(l)}>History</button>
                         {l.active && <button className="btn btn-success btn-sm" onClick={() => openRP(l)}>+ Deduct</button>}
                         {l.active && <button className="btn btn-danger btn-sm" onClick={() => closeLoan(l)}>Close</button>}
+                        <button className="btn btn-danger btn-sm" onClick={() => deleteLoan(l)}>Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -261,7 +277,7 @@ export default function Loans() {
               </div>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th>#</th><th>Amount</th><th>Month</th><th>Recorded By</th></tr></thead>
+                  <thead><tr><th>#</th><th>Amount</th><th>Month</th><th>Recorded By</th><th></th></tr></thead>
                   <tbody>
                     {(() => {
                       const payments = db.loanPayments.filter((p) => p.loan_id === selLoan.id)
@@ -274,6 +290,7 @@ export default function Loans() {
                           <td className="fw6 text-green">{fmtRs(p.amount)}</td>
                           <td className="text-muted">{fmtMonthVal(p.month)}</td>
                           <td className="text-muted">{p.recorded_by || '—'}</td>
+                          <td><button className="btn btn-danger btn-sm" onClick={() => deletePayment(p)}>Delete</button></td>
                         </tr>
                       ))
                     })()}
