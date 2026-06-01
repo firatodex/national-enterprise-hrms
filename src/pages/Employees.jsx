@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
-import { apiAddEmployee, apiChangePassword, apiChangeDailyWage, apiChangeRole } from '../api'
+import { apiAddEmployee, apiChangePassword, apiChangeDailyWage, apiChangeRole, apiDeactivateEmployee } from '../api'
 import { initials, fmtRs, fmtDate, todayStr, DEPT_COLORS, capitalize } from '../utils/helpers'
 import { roleBadge, deptBadge } from '../utils/badges'
 
@@ -11,14 +11,18 @@ export default function Employees() {
   const { currentUser, db, refresh } = useAuth()
   const showToast = useToast()
   const [search, setSearch] = useState('')
+  const [showInactive, setShowInactive] = useState(false)
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({ fname: '', lname: '', dept: 'Production', wage: '', phone: '', join: todayStr(), pass: '' })
   const [cpForm, setCpForm] = useState({ emp: '', pass: '', pass2: '' })
   const [cwForm, setCwForm] = useState({ emp: '', wage: '' })
   const [crForm, setCrForm] = useState({ emp: '', role: 'employee' })
 
-  const emps = db.users.filter((u) => (u.role === 'employee' || u.role === 'admin') && u.active)
-  const filtered = emps.filter(
+  const activeEmps = db.users.filter((u) => (u.role === 'employee' || u.role === 'admin') && u.active)
+  const inactiveEmps = db.users.filter((u) => (u.role === 'employee' || u.role === 'admin') && !u.active)
+  const displayEmps = showInactive ? inactiveEmps : activeEmps
+
+  const filtered = displayEmps.filter(
     (e) =>
       e.name.toLowerCase().includes(search.toLowerCase()) ||
       e.id.toLowerCase().includes(search.toLowerCase()) ||
@@ -26,8 +30,8 @@ export default function Employees() {
   )
 
   const openModal = (name) => {
-    if (name === 'pwd') setCpForm({ emp: emps[0]?.id || '', pass: '', pass2: '' })
-    if (name === 'wage') setCwForm({ emp: emps[0]?.id || '', wage: '' })
+    if (name === 'pwd') setCpForm({ emp: activeEmps[0]?.id || '', pass: '', pass2: '' })
+    if (name === 'wage') setCwForm({ emp: activeEmps[0]?.id || '', wage: '' })
     if (name === 'role') setCrForm({ emp: db.users.filter(u => u.active && u.id !== currentUser.id)[0]?.id || '', role: 'employee' })
     setModal(name)
   }
@@ -61,14 +65,31 @@ export default function Employees() {
     else showToast(r.err, 'var(--red)')
   }
 
-  const curWageEmp = emps.find((e) => e.id === cwForm.emp)
+  const deactivateEmp = async (e) => {
+    if (e.id === currentUser.id) { showToast("You can't deactivate yourself", 'var(--red)'); return }
+    if (!window.confirm(`Deactivate ${e.name}?\n\nThey will no longer be able to log in. All their history is preserved.`)) return
+    const r = await apiDeactivateEmployee(e.id)
+    if (r.ok) { showToast(`${e.name} deactivated`); await refresh() }
+    else showToast(r.err, 'var(--red)')
+  }
+
+  const reactivateEmp = async (e) => {
+    if (!window.confirm(`Reactivate ${e.name}?`)) return
+    const { error } = await import('../lib/supabase').then(m =>
+      m.supabase.from('users').update({ active: true }).eq('id', e.id)
+    )
+    if (!error) { showToast(`${e.name} reactivated`); await refresh() }
+    else showToast(error.message, 'var(--red)')
+  }
+
+  const curWageEmp = activeEmps.find((e) => e.id === cwForm.emp)
 
   return (
     <div>
       <div className="page-header">
         <div>
           <div className="page-title">Employees</div>
-          <div className="page-sub">{emps.length} active staff</div>
+          <div className="page-sub">{activeEmps.length} active · {inactiveEmps.length} inactive</div>
         </div>
         <div className="flex gap8" style={{ flexWrap: 'wrap' }}>
           <button className="btn btn-outline" onClick={() => openModal('pwd')}>Change Password</button>
@@ -81,12 +102,13 @@ export default function Employees() {
       </div>
 
       <div className="toolbar">
-        <input
-          className="search-inp"
-          placeholder="Search name, ID, department…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <input className="search-inp" placeholder="Search name, ID, department…"
+          value={search} onChange={(e) => setSearch(e.target.value)}/>
+        <button
+          className={`btn ${showInactive ? 'btn-danger' : 'btn-outline'}`}
+          onClick={() => setShowInactive(v => !v)}>
+          {showInactive ? `Showing Inactive (${inactiveEmps.length})` : `Show Inactive (${inactiveEmps.length})`}
+        </button>
       </div>
 
       <div className="card">
@@ -95,12 +117,15 @@ export default function Employees() {
             <thead>
               <tr>
                 <th>Employee</th><th>ID</th><th>Role</th>
-                <th>Department</th><th>Wage/Day</th><th>Phone</th><th>Joined</th>
+                <th>Department</th><th>Wage/Day</th><th>Phone</th><th>Joined</th><th>Action</th>
               </tr>
             </thead>
             <tbody>
+              {filtered.length === 0 && (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>No employees found</td></tr>
+              )}
               {filtered.map((e) => (
-                <tr key={e.id}>
+                <tr key={e.id} style={{ opacity: e.active ? 1 : 0.5 }}>
                   <td>
                     <div className="flex items-center gap8">
                       <div style={{ width: 32, height: 32, borderRadius: '50%', background: `${DEPT_COLORS[e.dept] || '#888'}20`, color: DEPT_COLORS[e.dept] || '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
@@ -115,6 +140,17 @@ export default function Employees() {
                   <td className="fw6">{fmtRs(e.daily_wage)}<span className="text-muted text-xs">/day</span></td>
                   <td className="text-muted">{e.phone}</td>
                   <td className="text-muted">{fmtDate(e.join_date)}</td>
+                  <td>
+                    {e.active ? (
+                      <button className="btn btn-danger btn-sm" onClick={() => deactivateEmp(e)}>
+                        Deactivate
+                      </button>
+                    ) : (
+                      <button className="btn btn-success btn-sm" onClick={() => reactivateEmp(e)}>
+                        Reactivate
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -149,7 +185,7 @@ export default function Employees() {
           <div className="modal">
             <div className="modal-head">Change Password<button className="modal-close" onClick={() => setModal(null)}>✕</button></div>
             <div className="modal-body" style={{ paddingTop: 4, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div><label className="lbl">Employee</label><select className="inp" value={cpForm.emp} onChange={(e) => setCpForm((f) => ({ ...f, emp: e.target.value }))}>{emps.map((e) => <option key={e.id} value={e.id}>{e.name} ({e.id})</option>)}</select></div>
+              <div><label className="lbl">Employee</label><select className="inp" value={cpForm.emp} onChange={(e) => setCpForm((f) => ({ ...f, emp: e.target.value }))}>{activeEmps.map((e) => <option key={e.id} value={e.id}>{e.name} ({e.id})</option>)}</select></div>
               <div><label className="lbl">New Password</label><input className="inp" type="password" value={cpForm.pass} onChange={(e) => setCpForm((f) => ({ ...f, pass: e.target.value }))}/></div>
               <div><label className="lbl">Confirm Password</label><input className="inp" type="password" value={cpForm.pass2} onChange={(e) => setCpForm((f) => ({ ...f, pass2: e.target.value }))}/></div>
             </div>
@@ -164,7 +200,7 @@ export default function Employees() {
           <div className="modal">
             <div className="modal-head">Change Daily Wage<button className="modal-close" onClick={() => setModal(null)}>✕</button></div>
             <div className="modal-body" style={{ paddingTop: 4, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div><label className="lbl">Employee</label><select className="inp" value={cwForm.emp} onChange={(e) => setCwForm((f) => ({ ...f, emp: e.target.value }))}>{emps.map((e) => <option key={e.id} value={e.id}>{e.name} — {fmtRs(e.daily_wage)}/day</option>)}</select></div>
+              <div><label className="lbl">Employee</label><select className="inp" value={cwForm.emp} onChange={(e) => setCwForm((f) => ({ ...f, emp: e.target.value }))}>{activeEmps.map((e) => <option key={e.id} value={e.id}>{e.name} — {fmtRs(e.daily_wage)}/day</option>)}</select></div>
               <div><label className="lbl">Current Wage</label><div style={{ padding: '8px 0', fontSize: 14, fontWeight: 600, color: 'var(--muted)' }}>{fmtRs(curWageEmp?.daily_wage || 0)}/day</div></div>
               <div><label className="lbl">New Daily Wage (₹)</label><input className="inp" type="number" value={cwForm.wage} onChange={(e) => setCwForm((f) => ({ ...f, wage: e.target.value }))} placeholder="1000"/></div>
             </div>
