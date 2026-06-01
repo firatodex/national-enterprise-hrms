@@ -288,17 +288,6 @@ export async function apiAddAdvance(empId, amount, date, notes, addedBy) {
 }
 
 export async function apiCloseMonth(year, month, salaryData, closedBy) {
-  // Double-close protection: check if already closed
-  const { data: existing } = await supabase
-    .from('month_closes')
-    .select('id')
-    .eq('year', year)
-    .eq('month', month)
-    .limit(1)
-  if (existing && existing.length > 0) {
-    return { ok: false, err: 'This month is already closed.' }
-  }
-
   const rows = salaryData.map((d) => ({
     emp_id: d.empId,
     year,
@@ -314,6 +303,51 @@ export async function apiCloseMonth(year, month, salaryData, closedBy) {
   }))
   const { error } = await supabase.from('month_closes').insert(rows)
   return error ? { ok: false, err: error.message } : { ok: true, count: rows.length }
+}
+
+
+export async function apiDeactivateEmployee(empId) {
+  const { error } = await supabase
+    .from('users').update({ active: false }).eq('id', empId)
+  return error ? { ok: false, err: error.message } : { ok: true }
+}
+
+export async function apiDeletePunch(punchId) {
+  const { error } = await supabase
+    .from('punches').delete().eq('id', punchId)
+  return error ? { ok: false, err: error.message } : { ok: true }
+}
+
+export async function apiDeleteAdvance(advanceId) {
+  const { error } = await supabase
+    .from('advances').delete().eq('id', advanceId)
+  return error ? { ok: false, err: error.message } : { ok: true }
+}
+
+export async function apiDeleteLoan(loanId) {
+  // Also delete all payments for this loan
+  await supabase.from('loan_payments').delete().eq('loan_id', loanId)
+  const { error } = await supabase
+    .from('loans').delete().eq('id', loanId)
+  return error ? { ok: false, err: error.message } : { ok: true }
+}
+
+export async function apiDeleteLoanPayment(paymentId, loanId, amount) {
+  // Delete the payment record
+  const { error } = await supabase
+    .from('loan_payments').delete().eq('id', paymentId)
+  if (error) return { ok: false, err: error.message }
+  // Reverse the paid amount on the loan
+  const { data: loan } = await supabase
+    .from('loans').select('paid, total').eq('id', loanId).single()
+  if (loan) {
+    const newPaid = Math.max(0, Number(loan.paid) - Number(amount))
+    const stillActive = newPaid < Number(loan.total)
+    await supabase.from('loans')
+      .update({ paid: newPaid, active: true })
+      .eq('id', loanId)
+  }
+  return { ok: true }
 }
 
 export async function apiSetPermissions(perms) {
