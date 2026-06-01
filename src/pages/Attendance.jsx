@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
-import { apiManualPunch } from '../api'
+import { apiManualPunch, apiDeletePunch } from '../api'
 import { fmt12, timeToMins, lunchDeduct, todayStr, nowTime, fmtRs, DEPT_COLORS, initials } from '../utils/helpers'
 import { roleBadge } from '../utils/badges'
+
+const nd = (val) => String(val || '').substring(0, 10)
 
 export default function Attendance() {
   const { db, refresh } = useAuth()
@@ -16,7 +18,7 @@ export default function Attendance() {
 
   const sessionsForDate = (empId) =>
     db.punches
-      .filter((p) => p.emp_id === empId && String(p.date).substring(0, 10) === date)
+      .filter((p) => p.emp_id === empId && nd(p.date) === date)
       .sort((a, b) => (a.session || 1) - (b.session || 1))
 
   let presentCount = 0
@@ -34,18 +36,21 @@ export default function Attendance() {
     else showToast(r.err, 'var(--red)')
   }
 
+  const deletePunch = async (punch, empName) => {
+    const timeStr = punch.in_time ? fmt12(punch.in_time) : fmt12(punch.out_time)
+    if (!window.confirm(`Delete punch entry for ${empName}?\nTime: ${timeStr}\n\nThis cannot be undone.`)) return
+    const r = await apiDeletePunch(punch.id)
+    if (r.ok) { showToast('Punch deleted'); await refresh() }
+    else showToast(r.err, 'var(--red)')
+  }
+
   return (
     <div>
       <div className="page-header">
         <div><div className="page-title">Attendance</div></div>
         <div className="flex gap8 items-center">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="inp"
-            style={{ width: 160 }}
-          />
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            className="inp" style={{ width: 160 }}/>
           <button className="btn btn-outline" onClick={openManual}>+ Manual Entry</button>
         </div>
       </div>
@@ -79,7 +84,9 @@ export default function Attendance() {
                   <tr key={e.id}>
                     <td>
                       <div className="flex items-center gap8">
-                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${DEPT_COLORS[e.dept] || '#888'}20`, color: DEPT_COLORS[e.dept] || '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>{initials(e.name)}</div>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${DEPT_COLORS[e.dept] || '#888'}20`, color: DEPT_COLORS[e.dept] || '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
+                          {initials(e.name)}
+                        </div>
                         <span className="fw6">{e.name}</span>
                       </div>
                     </td>
@@ -88,18 +95,30 @@ export default function Attendance() {
                       {sessions.length === 0 ? (
                         <span className="text-muted">—</span>
                       ) : (
-                        sessions.map((s, i) => (
-                          <span key={i} className="text-sm" style={{ marginRight: 8 }}>
-                            {fmt12(s.in_time) || '?'}→{fmt12(s.out_time) || '?'}
-                            {(s.manual_in || s.manual_out) && (
-                              <span className="badge b-amber" style={{ fontSize: 9, marginLeft: 2 }}>M</span>
-                            )}
-                          </span>
-                        ))
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {sessions.map((s) => (
+                            <div key={s.id} className="flex items-center gap8">
+                              <span className="text-sm">
+                                {fmt12(s.in_time) || '?'}→{fmt12(s.out_time) || '?'}
+                                {(s.manual_in || s.manual_out) && (
+                                  <span className="badge b-amber" style={{ fontSize: 9, marginLeft: 2 }}>M</span>
+                                )}
+                              </span>
+                              <button
+                                className="btn btn-danger btn-sm"
+                                style={{ padding: '2px 7px', fontSize: 11 }}
+                                onClick={() => deletePunch(s, e.name)}>
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </td>
                     <td className="fw6">
-                      {totalMin > 0 ? `${totalMin} min` : hasIn ? <span className="badge b-amber">Active</span> : <span className="badge b-gray">Absent</span>}
+                      {totalMin > 0 ? `${totalMin} min`
+                        : hasIn ? <span className="badge b-amber">Active</span>
+                        : <span className="badge b-gray">Absent</span>}
                     </td>
                     <td className="fw6 text-green">{totalMin > 0 ? fmtRs(pay) : '—'}</td>
                   </tr>
