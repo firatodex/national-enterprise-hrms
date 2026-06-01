@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
-import { apiAddAdvance } from '../api'
+import { apiAddAdvance, apiDeleteAdvance } from '../api'
 import { fmtRs, fmtDate, todayStr, initials } from '../utils/helpers'
 
 export default function Advances() {
@@ -23,7 +23,6 @@ export default function Advances() {
       return parts[0] === yr && parts[1] === mo
     })
     .reduce((s, a) => s + Number(a.amount || 0), 0)
-  const allTime = db.advances.reduce((s, a) => s + Number(a.amount || 0), 0)
 
   const filtered = db.advances
     .filter((a) => {
@@ -40,6 +39,14 @@ export default function Advances() {
     else showToast(r.err, 'var(--red)')
   }
 
+  const deleteAdvance = async (a) => {
+    const e = empById(a.emp_id)
+    if (!window.confirm(`Delete advance of ${fmtRs(a.amount)} for ${e ? e.name : a.emp_id}?\n\nThis cannot be undone.`)) return
+    const r = await apiDeleteAdvance(a.id)
+    if (r.ok) { showToast('Advance deleted'); await refresh() }
+    else showToast(r.err, 'var(--red)')
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -47,25 +54,31 @@ export default function Advances() {
           <div className="page-title">Advances</div>
           <div className="page-sub">Cash given to employees — auto-deducted from that month's salary</div>
         </div>
-        <button className="btn btn-primary" onClick={() => { setForm({ emp: emps[0]?.id || '', amount: '', date: todayStr(), notes: '' }); setModal(true) }}>+ Add Advance</button>
+        <button className="btn btn-primary" onClick={() => {
+          setForm({ emp: emps[0]?.id || '', amount: '', date: todayStr(), notes: '' })
+          setModal(true)
+        }}>+ Add Advance</button>
       </div>
 
       <div className="stats" style={{ gridTemplateColumns: 'repeat(2,1fr)' }}>
         <div className="stat"><div className="stat-label">This Month</div><div className="stat-val text-amber">{fmtRs(thisMonth)}</div></div>
-        <div className="stat"><div className="stat-label">All Time Given</div><div className="stat-val">{fmtRs(allTime)}</div></div>
+        <div className="stat"><div className="stat-label">Total Entries</div><div className="stat-val">{db.advances.length}</div></div>
       </div>
 
       <div className="toolbar">
-        <input className="search-inp" placeholder="Search by name or ID…" value={search} onChange={(e) => setSearch(e.target.value)}/>
+        <input className="search-inp" placeholder="Search by name or ID…"
+          value={search} onChange={(e) => setSearch(e.target.value)}/>
       </div>
 
       <div className="card">
         <div className="tbl-wrap">
           <table>
-            <thead><tr><th>Employee</th><th>Amount</th><th>Date Given</th><th>Notes</th><th>Added By</th></tr></thead>
+            <thead>
+              <tr><th>Employee</th><th>Amount</th><th>Date Given</th><th>Notes</th><th>Added By</th><th>Action</th></tr>
+            </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>No advances recorded</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>No advances recorded</td></tr>
               ) : (
                 filtered.map((a) => {
                   const e = empById(a.emp_id)
@@ -73,7 +86,9 @@ export default function Advances() {
                     <tr key={a.id}>
                       <td>
                         <div className="flex items-center gap8">
-                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--amber-light)', color: 'var(--amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>{initials(e ? e.name : a.emp_id)}</div>
+                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--amber-light)', color: 'var(--amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
+                            {initials(e ? e.name : a.emp_id)}
+                          </div>
                           <div>
                             <div className="fw6">{e ? e.name : a.emp_id}</div>
                             <div className="text-muted text-xs">{a.emp_id}</div>
@@ -84,6 +99,11 @@ export default function Advances() {
                       <td className="text-muted">{fmtDate(a.date)}</td>
                       <td className="text-muted">{a.notes || '—'}</td>
                       <td className="text-muted text-xs">{a.added_by || '—'}</td>
+                      <td>
+                        <button className="btn btn-danger btn-sm" onClick={() => deleteAdvance(a)}>
+                          Delete
+                        </button>
+                      </td>
                     </tr>
                   )
                 })
